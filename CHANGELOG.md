@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.0.1
+
+- :tada: Add GH Workflows
+
 ### v1.0.0
 
 - :tada: Initial Commit

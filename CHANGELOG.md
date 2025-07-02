@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.4.2
+
+- :bug: Cache Fallback
+
 ### v1.4.1
 
 - :bug: Fix Cache generation

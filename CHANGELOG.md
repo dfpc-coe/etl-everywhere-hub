@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.1.0
+
+- :tada: Add support caching custom types
+
 ### v1.0.1
 
 - :tada: Add GH Workflows

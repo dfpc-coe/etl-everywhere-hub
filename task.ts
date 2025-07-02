@@ -2,7 +2,7 @@ import Err from '@openaddresses/batch-error';
 import Schema from '@openaddresses/batch-schema';
 import type { TSchema } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import ETL, { DataFlowType, SchemaType, handler as internal, local, InvocationType } from '@tak-ps/etl';
+import ETL, { DataFlowType, SchemaType, handler as internal, local, InvocationType, fetch } from '@tak-ps/etl';
 import type { Event } from '@tak-ps/etl';
 
 export interface Share {
@@ -38,7 +38,18 @@ const EverywhereItem = Type.Object({
     alias: Type.Optional(Type.String())
 })
 
+const EphemeralStore = Type.Object({
+    devices: Type.Optional(Type.Record(Type.String(), EverywhereItem))
+})
+
 const Input = Type.Object({
+    TokenId: Type.Optional(Type.String({
+        description: 'Everywhere Hub Token ID that can be used to optionally resync cache on a schedule'
+    })),
+    RetentionDuration: Type.Integer({
+        default: 3600 * 1000, // 30 minutes
+        description: 'How long to retain data in milliseconds, defaults to 60 minutes'
+    }),
     'DEBUG': Type.Boolean({
         default: false,
         description: 'Print debug info in logs'
@@ -48,7 +59,33 @@ const Input = Type.Object({
 export default class Task extends ETL {
     static name = 'etl-everywhere-hub'
     static flow = [ DataFlowType.Incoming ];
-    static invocation = [ InvocationType.Webhook ];
+    static invocation = [ InvocationType.Webhook, InvocationType.Schedule ];
+
+    async schema(
+        type: SchemaType = SchemaType.Input,
+        flow: DataFlowType = DataFlowType.Incoming
+    ): Promise<TSchema> {
+        if (flow === DataFlowType.Incoming) {
+            if (type === SchemaType.Input) {
+                return Input;
+            } else {
+                return Type.Object({
+                    inreachId: Type.String(),
+                    inreachName: Type.String(),
+                    inreachDeviceType: Type.String(),
+                    inreachIMEI: Type.Optional(Type.String()),
+                    inreachIncidentId: Type.Optional(Type.String()),
+                    inreachValidFix: Type.Optional(Type.String()),
+                    inreachText: Type.Optional(Type.String()),
+                    inreachEvent: Type.Optional(Type.String()),
+                    inreachDeviceId: Type.String(),
+                    inreachReceive: Type.String({ format: 'date-time' }),
+                })
+            }
+        } else {
+            return Type.Object({});
+        }
+    }
 
     static async webhooks(
         schema: Schema,
@@ -72,6 +109,11 @@ export default class Task extends ETL {
             if (env.DEBUG) {
                 console.error(`DEBUG Webhook: ${req.params.webhookid} - ${JSON.stringify(req.body, null, 4)}`);
             }
+
+            const ephem = await task.ephemeral(EphemeralStore, DataFlowType.Incoming);
+            if (ephem.devices) ephem.devices = {};
+            ephem.devices[req.body.deviceId] = req.body;
+            await task.setEphemeral(ephem)
 
             try {
                 await task.submit({
@@ -109,37 +151,53 @@ export default class Task extends ETL {
         })
     }
 
-    async schema(
-        type: SchemaType = SchemaType.Input,
-        flow: DataFlowType = DataFlowType.Incoming
-    ): Promise<TSchema> {
-        if (flow === DataFlowType.Incoming) {
-            if (type === SchemaType.Input) {
-                return Input;
-            } else {
-                return Type.Object({
-                    inreachId: Type.String(),
-                    inreachName: Type.String(),
-                    inreachDeviceType: Type.String(),
-                    inreachIMEI: Type.Optional(Type.String()),
-                    inreachIncidentId: Type.Optional(Type.String()),
-                    inreachValidFix: Type.Optional(Type.String()),
-                    inreachText: Type.Optional(Type.String()),
-                    inreachEvent: Type.Optional(Type.String()),
-                    inreachDeviceId: Type.String(),
-                    inreachReceive: Type.String({ format: 'date-time' }),
-                })
-            }
+    async control(): Promise<void> {
+        const env = await this.env(Input);
+        if (env.TokenId) {
+            const url = new URL('https://everywhere-hub.com/v2/api/tracks')
+            url.searchParams.set('tokenId', env.TokenId);
+            url.searchParams.set('noEarlierThan', new Date(Date.now() - env.RetentionDuration).toISOString());
+            url.searchParams.set('latestPositionOnly', String(true));
+
+            const res = await fetch(url);
+
+            const latest = await res.typed(Type.Object({
+                type: Type.Literal('FeatureCollection'),
+                features: Type.Array(Type.Object({
+                    id: Type.String(),
+                    type: Type.Literal('Feature'),
+                    properties: Type.Object({
+                        name: Type.String(),
+                        entityId: Type.Integer(),
+                        entityType: Type.String(),
+                        deviceType: Type.String(),
+                        alias: Type.String(),
+                        oemSerial: Type.String(),
+                        teamId: Type.Integer(),
+                        time: Type.Integer(),
+                        inboundMessageId: Type.Integer(),
+                        isEmergency: Type.Optional(Type.Boolean()),
+                        direction: Type.Number(),
+                        source: Type.Optional(Type.String())
+                    }),
+                    geometry: Type.Object({
+                        type: Type.Literal('Point'),
+                        coordinates: Type.Array(Type.Number())
+                    })
+                }))
+            }));
+
+            console.error(latest);
         } else {
-            return Type.Object({});
+            console.warn('No Everywhere Hub Token ID provided, skipping resync schedule');
         }
     }
 }
 
-await local(new Task(import.meta.url), import.meta.url);
+await local(await Task.init(import.meta.url), import.meta.url);
 
 export async function handler(event: Event = {}, context?: object) {
-    return await internal(new Task(import.meta.url, {
+    return await internal(await Task.init(import.meta.url, {
         logging: {
             event: process.env.DEBUG ? true : false,
             webhooks: true

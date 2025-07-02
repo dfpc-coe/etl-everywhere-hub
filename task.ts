@@ -10,7 +10,6 @@ export interface Share {
     CallSign?: string;
     Password?: string;
 }
-
 const EverywhereItem = Type.Object({
     converterId: Type.String(),
     deviceId: Type.Integer(),
@@ -176,15 +175,14 @@ export default class Task extends ETL {
             const latest = await res.typed(Type.Object({
                 type: Type.Literal('FeatureCollection'),
                 features: Type.Array(Type.Object({
-                    id: Type.String(),
                     type: Type.Literal('Feature'),
                     properties: Type.Object({
                         name: Type.String(),
                         entityId: Type.Integer(),
                         entityType: Type.String(),
                         deviceType: Type.String(),
-                        alias: Type.String(),
-                        oemSerial: Type.String(),
+                        alias: Type.Optional(Type.String()),
+                        oemSerial: Type.Optional(Type.String()),
                         teamId: Type.Integer(),
                         time: Type.Integer(),
                         inboundMessageId: Type.Integer(),

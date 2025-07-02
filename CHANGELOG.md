@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.2.1
+
+- :bug: Update Schema Expectations
+
 ### v1.2.0
 
 - :tada: Add support for internal feature cache

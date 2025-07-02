@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.2.0
+
+- :tada: Add support for internal feature cache
+
 ### v1.1.0
 
 - :tada: Add support caching custom types

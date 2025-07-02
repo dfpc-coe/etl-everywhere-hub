@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.3.0
+
+- :rocket: Broadcast Emergency Message
+
 ### v1.2.1
 
 - :bug: Update Schema Expectations

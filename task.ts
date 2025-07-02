@@ -127,6 +127,8 @@ export default class Task extends ETL {
                     id: `inreach-${req.body.entityId}`,
                     type: 'Feature',
                     properties: {
+                        type: req.body.trackPoint.isEmergency ? 'b-a-o-tbl' : 'a-f-G-U-U-S-X',
+                        how: 'm-g',
                         course: req.body.trackPoint.direction,
                         callsign: req.body.alias || req.body.name,
                         time: new Date(req.body.trackPoint.time).toISOString(),
@@ -206,6 +208,8 @@ export default class Task extends ETL {
                         id: `inreach-${feature.properties.entityId}`,
                         type: 'Feature',
                         properties: {
+                            type: feature.properties.isEmergency ? 'b-a-o-tbl' : 'a-f-G-U-U-S-X',
+                            how: 'm-g',
                             course: feature.properties.direction,
                             callsign: feature.properties.alias || feature.properties.name,
                             time: new Date(feature.properties.time).toISOString(),

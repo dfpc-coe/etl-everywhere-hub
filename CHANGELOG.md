@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.4.3
+
+- :rocket: Update Core Types
+
 ### v1.4.2
 
 - :bug: Cache Fallback

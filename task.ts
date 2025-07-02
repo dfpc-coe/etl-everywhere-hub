@@ -120,9 +120,6 @@ export default class Task extends ETL {
                 const ephem = await task.ephemeral(EphemeralStore, DataFlowType.Incoming);
                 if (ephem.devices) ephem.devices = {};
 
-                ephem.devices[`inreach-${req.body.entityId}`] = req.body;
-                await task.setEphemeral(ephem)
-
                 const feat: Static<typeof InputFeature> = {
                     id: `inreach-${req.body.entityId}`,
                     type: 'Feature',
@@ -146,6 +143,10 @@ export default class Task extends ETL {
                         coordinates: [ req.body.trackPoint.point.x, req.body.trackPoint.point.y ]
                     }
                 }
+
+                ephem.devices[`inreach-${req.body.entityId}`] = feat;
+                await task.setEphemeral(ephem)
+
 
                 await task.submit({
                     type: 'FeatureCollection',

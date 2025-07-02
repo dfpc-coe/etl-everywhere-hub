@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v1.4.1
+
+- :bug: Fix Cache generation
+
 ### v1.4.0
 
 - :bug: Use GeoJSON feature for ephemeral store

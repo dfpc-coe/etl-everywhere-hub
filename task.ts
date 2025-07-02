@@ -118,7 +118,7 @@ export default class Task extends ETL {
 
             try {
                 const ephem = await task.ephemeral(EphemeralStore, DataFlowType.Incoming);
-                if (ephem.devices) ephem.devices = {};
+                if (!ephem.devices) ephem.devices = {};
 
                 const feat: Static<typeof InputFeature> = {
                     id: `inreach-${req.body.entityId}`,
@@ -168,6 +168,8 @@ export default class Task extends ETL {
         const ephem = await this.ephemeral(EphemeralStore, DataFlowType.Incoming);
 
         if (env.TokenId && (!ephem.cachetime || ephem.cachetime < new Date().getTime() - env.CacheRefresh)) {
+            console.log('ok - refreshing cache from Everywhere Hub API');
+
             const url = new URL('https://everywhere-hub.com/v2/api/tracks')
             url.searchParams.set('tokenId', env.TokenId);
             url.searchParams.set('noEarlierThan', String(new Date().getTime() - env.RetentionDuration));
@@ -230,14 +232,16 @@ export default class Task extends ETL {
 
             await this.submit(fc);
 
+            ephem.devices = {};
             for (const feat of fc.features) {
-                ephem.devices = {};
                 ephem.devices[feat.id] = feat;
             }
 
             await this.setEphemeral(ephem)
 
         } else {
+            console.log('ok - reusing cached data');
+
             const fc: Static<typeof InputFeatureCollection> = {
                 type: 'FeatureCollection',
                 features: []

@@ -1,8 +1,9 @@
 import Err from '@openaddresses/batch-error';
+import { Feature } from '@tak-ps/node-cot';
 import Schema from '@openaddresses/batch-schema';
 import type { Static, TSchema } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import ETL, { DataFlowType, SchemaType, handler as internal, local, InvocationType, fetch, InputFeatureCollection, InputFeature } from '@tak-ps/etl';
+import ETL, { DataFlowType, SchemaType, handler as internal, local, InvocationType, fetch } from '@tak-ps/etl';
 import type { Event } from '@tak-ps/etl';
 
 export interface Share {
@@ -41,7 +42,7 @@ const EphemeralStore = Type.Object({
     cachetime: Type.Optional(Type.Integer({
         description: 'Cache timestamp for the last time devices were synced via the API'
     })),
-    devices: Type.Optional(Type.Record(Type.String(), InputFeature))
+    devices: Type.Optional(Type.Record(Type.String(), Feature.InputFeature))
 })
 
 const Input = Type.Object({
@@ -117,7 +118,7 @@ export default class Task extends ETL {
             }
 
             try {
-                const feat: Static<typeof InputFeature> = {
+                const feat: Static<typeof Feature.InputFeature> = {
                     id: `inreach-${req.body.entityId}`,
                     type: 'Feature',
                     properties: {
@@ -206,7 +207,7 @@ export default class Task extends ETL {
 
             ephem.cachetime = new Date().getTime();
 
-            const fc: Static<typeof InputFeatureCollection> = {
+            const fc: Static<typeof Feature.InputFeatureCollection> = {
                 type: 'FeatureCollection',
                 features: latest.features.map((feature) => {
                     return {
@@ -243,7 +244,7 @@ export default class Task extends ETL {
         } else {
             console.log('ok - reusing cached data');
 
-            const fc: Static<typeof InputFeatureCollection> = {
+            const fc: Static<typeof Feature.InputFeatureCollection> = {
                 type: 'FeatureCollection',
                 features: []
             };

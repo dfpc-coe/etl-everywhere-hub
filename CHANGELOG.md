@@ -10,6 +10,11 @@
 
 ## Version History
 
+### v1.7.1
+
+- :bug: Fix Lint Error
+- :rocket: Update Core Deps
+
 ### v1.7.0
 
 - :rocket: Update Core Deps

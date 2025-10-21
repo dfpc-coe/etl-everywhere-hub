@@ -164,7 +164,6 @@ export default class Task extends ETL {
     }
 
     async control(): Promise<void> {
-        const layer = await this.fetchLayer();
         const env = await this.env(Input);
 
         const ephem = await this.ephemeral(EphemeralStore, DataFlowType.Incoming);

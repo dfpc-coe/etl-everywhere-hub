@@ -236,7 +236,7 @@ export default class Task extends ETL {
 
             ephem.devices = {};
             for (const feat of fc.features) {
-                ephem.devices[feat.id] = feat;
+                ephem.devices[String(feat.id)] = feat;
             }
 
             await this.setEphemeral(ephem)
@@ -249,7 +249,7 @@ export default class Task extends ETL {
             };
 
             for (const [k, v] of Object.entries(ephem.devices || {})) {
-                if (new Date(v.properties.time).getTime() < new Date().getTime() - env.RetentionDuration) {
+                if (new Date(v.properties.time ?? 0).getTime() < new Date().getTime() - env.RetentionDuration) {
                     delete ephem.devices[k];
                     continue;
                 }

@@ -1,0 +1,33 @@
+{
+    "version": "1.0",
+    "name": "Everywhere Hub",
+    "description": "Ingests device and team tracking data from Everywhere Hub via webhook and scheduled cache refresh and posts positions to the map.",
+    "compute": {
+        "memory": 512,
+        "timeout": 60
+    },
+    "permissions": [
+        {
+            "resource": "feature:*",
+            "required": true,
+            "description": "Everywhere Hub posts device and team positions to the map"
+        }
+    ],
+    "invocations": {
+        "incoming": {
+            "schedule": {
+                "description": "Refreshes the Everywhere Hub device cache on a schedule when a Token ID is configured.",
+                "default": {
+                    "enabled": true,
+                    "schedule": "rate(1 minute)"
+                }
+            },
+            "webhook": {
+                "description": "Receives Everywhere Hub tracking updates pushed to the webhook endpoint.",
+                "default": {
+                    "enabled": true
+                }
+            }
+        }
+    }
+}

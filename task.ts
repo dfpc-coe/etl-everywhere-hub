@@ -96,7 +96,7 @@ export default class Task extends ETL {
 
     static async webhooks(
         schema: Schema,
-        task: Task
+        task: ETL
     ): Promise<void> {
         const env = await task.env(Input);
 

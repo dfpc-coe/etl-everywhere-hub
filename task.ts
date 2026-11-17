@@ -38,6 +38,8 @@ const EverywhereItem = Type.Object({
     alias: Type.Optional(Type.String())
 })
 
+const DebugItem = Type.Unsafe<Static<typeof EverywhereItem>>(Type.Any());
+
 const EphemeralStore = Type.Object({
     cachetime: Type.Optional(Type.Integer({
         description: 'Cache timestamp for the last time devices were synced via the API'
@@ -50,11 +52,12 @@ const Input = Type.Object({
         description: 'Everywhere Hub Token ID that can be used to optionally resync cache on a schedule'
     })),
     CacheRefresh: Type.Integer({
-        default: 300000, // 5 minutes
+        // 5 minutes
+        default: 300000,
         description: 'How often to perform a data refresh with the Everywhere Hub API if a TokenId is provided'
     }),
     RetentionDuration: Type.Integer({
-        default: 3600 * 1000, // 30 minutes
+        default: 3600 * 1000,
         description: 'How long to retain data in milliseconds, defaults to 60 minutes'
     }),
     'DEBUG': Type.Boolean({
@@ -72,26 +75,22 @@ export default class Task extends ETL {
         type: SchemaType = SchemaType.Input,
         flow: DataFlowType = DataFlowType.Incoming
     ): Promise<TSchema> {
-        if (flow === DataFlowType.Incoming) {
-            if (type === SchemaType.Input) {
-                return Input;
-            } else {
-                return Type.Object({
-                    inreachId: Type.String(),
-                    inreachName: Type.String(),
-                    inreachDeviceType: Type.String(),
-                    inreachIMEI: Type.Optional(Type.String()),
-                    inreachIncidentId: Type.Optional(Type.String()),
-                    inreachValidFix: Type.Optional(Type.String()),
-                    inreachText: Type.Optional(Type.String()),
-                    inreachEvent: Type.Optional(Type.String()),
-                    inreachDeviceId: Type.String(),
-                    inreachReceive: Type.String({ format: 'date-time' }),
-                })
-            }
-        } else {
-            return Type.Object({});
-        }
+        if (flow !== DataFlowType.Incoming) return Type.Object({});
+
+        if (type === SchemaType.Input) return Input;
+
+        return Type.Object({
+            inreachId: Type.String(),
+            inreachName: Type.String(),
+            inreachDeviceType: Type.String(),
+            inreachIMEI: Type.Optional(Type.String()),
+            inreachIncidentId: Type.Optional(Type.String()),
+            inreachValidFix: Type.Optional(Type.String()),
+            inreachText: Type.Optional(Type.String()),
+            inreachEvent: Type.Optional(Type.String()),
+            inreachDeviceId: Type.String(),
+            inreachReceive: Type.String({ format: 'date-time' }),
+        });
     }
 
     static async webhooks(
@@ -100,81 +99,86 @@ export default class Task extends ETL {
     ): Promise<void> {
         const env = await task.env(Input);
 
-        schema.post('/:webhookid', {
+        await schema.post('/:webhookid', {
             name: 'Incoming Webhook',
             group: 'Default',
             description: 'Get an Everywhere Hub InReach Update',
             params: Type.Object({
                 webhookid: Type.String()
             }),
-            body: env.DEBUG ? Type.Any() : EverywhereItem,
+            body: env.DEBUG ? DebugItem : EverywhereItem,
             res: Type.Object({
                 status: Type.Number(),
                 message: Type.String()
             })
-        }, async (req, res) => {
+        }, (req, res) => {
             if (env.DEBUG) {
                 console.error(`DEBUG Webhook: ${req.params.webhookid} - ${JSON.stringify(req.body, null, 4)}`);
             }
 
-            try {
-                const feat: Static<typeof Feature.InputFeature> = {
-                    id: `inreach-${req.body.entityId}`,
-                    type: 'Feature',
-                    properties: {
-                        type: req.body.trackPoint.isEmergency ? 'b-a-o-tbl' : 'a-f-G-U-U-S-X',
-                        how: 'm-g',
-                        course: req.body.trackPoint.direction,
-                        callsign: req.body.alias || req.body.name,
-                        time: new Date(req.body.trackPoint.time).toISOString(),
-                        start: new Date(req.body.trackPoint.time).toISOString(),
-                        metadata: {
-                            inreachId: req.body.entityId,
-                            inreachName: req.body.name,
-                            inreachDeviceType: req.body.deviceType,
-                            inreachDeviceId: req.body.deviceId,
-                            inreachReceive: new Date(req.body.trackPoint.time).toISOString()
-                        }
-                    },
-                    geometry: {
-                        type: 'Point',
-                        coordinates: [ req.body.trackPoint.point.x, req.body.trackPoint.point.y ]
-                    }
-                }
-
-                const ephem = await task.ephemeral(EphemeralStore, DataFlowType.Incoming);
-                if (!ephem.devices) ephem.devices = {};
-
-                ephem.devices[`inreach-${req.body.entityId}`] = feat;
-                await task.setEphemeral(ephem)
-
-                await task.submit({
-                    type: 'FeatureCollection',
-                    features: [feat]
-                });
-
-                res.json({
+            Task.receive(task, req.body)
+                .then(() => res.json({
                     status: 200,
                     message: 'Received'
+                }))
+                .catch((err: unknown) => {
+                    Err.respond(err, res);
                 });
-            } catch (err) {
-                Err.respond(err, res);
-            }
         })
+    }
+
+    static async receive(
+        task: ETL,
+        body: Static<typeof EverywhereItem>
+    ): Promise<void> {
+        const feat: Static<typeof Feature.InputFeature> = {
+            id: `inreach-${body.entityId}`,
+            type: 'Feature',
+            properties: {
+                type: body.trackPoint.isEmergency ? 'b-a-o-tbl' : 'a-f-G-U-U-S-X',
+                how: 'm-g',
+                course: body.trackPoint.direction,
+                callsign: body.alias || body.name,
+                time: new Date(body.trackPoint.time).toISOString(),
+                start: new Date(body.trackPoint.time).toISOString(),
+                metadata: {
+                    inreachId: body.entityId,
+                    inreachName: body.name,
+                    inreachDeviceType: body.deviceType,
+                    inreachDeviceId: body.deviceId,
+                    inreachReceive: new Date(body.trackPoint.time).toISOString()
+                }
+            },
+            geometry: {
+                type: 'Point',
+                coordinates: [ body.trackPoint.point.x, body.trackPoint.point.y ]
+            }
+        }
+
+        const ephem = await task.ephemeral(EphemeralStore, DataFlowType.Incoming);
+        ephem.devices ??= {};
+
+        ephem.devices[`inreach-${body.entityId}`] = feat;
+        await task.setEphemeral(ephem)
+
+        await task.submit({
+            type: 'FeatureCollection',
+            features: [feat]
+        });
     }
 
     async control(): Promise<void> {
         const env = await this.env(Input);
 
         const ephem = await this.ephemeral(EphemeralStore, DataFlowType.Incoming);
-        if (!ephem.devices) ephem.devices = {};
+        ephem.devices ??= {};
 
-        if (env.TokenId && (!ephem.cachetime || ephem.cachetime < new Date().getTime() - env.CacheRefresh)) {
+        if (env.TokenId && (ephem.cachetime === undefined || ephem.cachetime === 0 || ephem.cachetime < Date.now() - env.CacheRefresh)) {
             console.log('ok - refreshing cache from Everywhere Hub API');
 
             const url = new URL('https://everywhere-hub.com/v2/api/tracks')
             url.searchParams.set('tokenId', env.TokenId);
-            url.searchParams.set('noEarlierThan', String(new Date().getTime() - env.RetentionDuration));
+            url.searchParams.set('noEarlierThan', String(Date.now() - env.RetentionDuration));
             url.searchParams.set('latestPositionOnly', String(true));
 
             const res = await fetch(url);
@@ -204,7 +208,7 @@ export default class Task extends ETL {
                 }))
             }));
 
-            ephem.cachetime = new Date().getTime();
+            ephem.cachetime = Date.now();
 
             const fc: Static<typeof Feature.InputFeatureCollection> = {
                 type: 'FeatureCollection',
@@ -238,8 +242,6 @@ export default class Task extends ETL {
             for (const feat of fc.features) {
                 ephem.devices[String(feat.id)] = feat;
             }
-
-            await this.setEphemeral(ephem)
         } else {
             console.log('ok - reusing cached data');
 
@@ -248,8 +250,8 @@ export default class Task extends ETL {
                 features: []
             };
 
-            for (const [k, v] of Object.entries(ephem.devices || {})) {
-                if (new Date(v.properties.time ?? 0).getTime() < new Date().getTime() - env.RetentionDuration) {
+            for (const [k, v] of Object.entries(ephem.devices)) {
+                if (new Date(v.properties.time ?? 0).getTime() < Date.now() - env.RetentionDuration) {
                     delete ephem.devices[k];
                     continue;
                 }
@@ -258,18 +260,18 @@ export default class Task extends ETL {
             }
 
             await this.submit(fc);
-
-            await this.setEphemeral(ephem)
         }
+
+        await this.setEphemeral(ephem)
     }
 }
 
 await local(await Task.init(import.meta.url), import.meta.url);
 
-export async function handler(event: Event = {}, context?: object) {
-    return await internal(await Task.init(import.meta.url, {
+export async function handler(event: Event = {}, context?: object): ReturnType<typeof internal> {
+    return internal(await Task.init(import.meta.url, {
         logging: {
-            event: process.env.DEBUG ? true : false,
+            event: Boolean(process.env.DEBUG),
             webhooks: true
         }
     }), event, context);
